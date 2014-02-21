@@ -1,0 +1,96 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" >
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentBottom="true"
+        tools:context=".MapActivity" >
+
+        <fragment
+            android:id="@+id/map"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            class="com.google.android.gms.maps.SupportMapFragment"
+            android:scrollbars="vertical" />
+
+        <RadioGroup
+            android:id="@+id/radio_group_list_selector"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#80000000"
+            android:orientation="horizontal"
+            android:padding="4dp" >
+
+            <RadioButton
+                android:id="@+id/radioPopular"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_horizontal|center_vertical" />
+
+            <View
+                android:id="@+id/VerticalLine"
+                android:layout_width="1dip"
+                android:layout_height="match_parent"
+                android:background="#aaa" />
+
+            <RadioButton
+                android:id="@+id/radioAZ"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_horizontal|center_vertical" />
+
+            <View
+                android:id="@+id/VerticalLine"
+                android:layout_width="1dip"
+                android:layout_height="match_parent"
+                android:background="#aaa" />
+
+            <RadioButton
+                android:id="@+id/radioCategory"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_horizontal|center_vertical" />
+
+            <View
+                android:id="@+id/VerticalLine"
+                android:layout_width="1dip"
+                android:layout_height="match_parent"
+                android:background="#aaa" />
+
+            <RadioButton
+                android:id="@+id/radioNearBy"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_horizontal|center_vertical" />
+        </RadioGroup>
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/fireButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:layout_marginTop="38dp"
+        android:text="FIRE!" />
+
+    <TextView
+        android:id="@+id/powerMeterTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:text="Power: -"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+</RelativeLayout>
