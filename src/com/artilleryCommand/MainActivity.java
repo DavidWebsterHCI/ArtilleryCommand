@@ -24,7 +24,7 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        //Note: This will eventually turn into a splash screen/menu options...etc currently just working on the guts of this app hence the
+        //Note:  TODO This will eventually turn into a splash screen/menu options...etc currently just working on the guts of this app hence the
         //Empty main class
         
         Intent intent = new Intent(getApplicationContext(), com.artilleryCommand.MapActivity.class);

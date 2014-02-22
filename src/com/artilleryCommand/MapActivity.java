@@ -7,10 +7,13 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -34,6 +37,7 @@ import android.widget.Toast;
 public class MapActivity extends FragmentActivity implements SensorEventListener, LocationListener {
 
 	private final double POWER_UPDATE_RATE = 10;
+	private final double PROJECTILE_TRAVEL_UPDATE_RATE = 10;
 	private double currentLat, currentLon;
 
 	private GoogleMap map;
@@ -87,12 +91,12 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 				int action = event.getAction();
 				if (action == MotionEvent.ACTION_DOWN) {
 					startTime = System.currentTimeMillis();
-					startRepeatingTask();
+					startRepeatingTask("powerbar");
 				} 
 				else if (action == MotionEvent.ACTION_UP) {
 					endTime = System.currentTimeMillis();
 					timeFireButtonWasHeldDown = ((endTime-startTime) / POWER_UPDATE_RATE);
-					stopRepeatingTask();
+					stopRepeatingTask("powerbar");
 				}
 
 				return false;
@@ -108,22 +112,42 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 				computeOrientation();
 
 				LatLng currentLoc = new LatLng(currentLat, currentLon);
-
+				
+				LatLng projectileLandLoc = ProjectileCalculations.computeShellLandPoint(currentLoc, ProjectileCalculations.computeShellDistanceTraveled(m_lastRoll, timeFireButtonWasHeldDown), m_lastYaw-90); // -90 rotates it so 0 degree is north instead of east.
+				
 				map.addMarker(new MarkerOptions() 
-				.position(computeShellLandPoint(currentLoc, computeShellDistanceTraveled(m_lastRoll, timeFireButtonWasHeldDown), m_lastYaw-90)) // -90 rotates it so 0 degree is north instead of east.
+				.position(projectileLandLoc) 
 				.title("Hit here!"));
+				
+				// Add a thin red line from London to New York.
+				   Polyline line = map.addPolyline(new PolylineOptions()
+				       .add(currentLoc, projectileLandLoc)
+				       .width(5)
+				       .color(Color.RED));
 			}
 		});
 	}
 
 
-	Runnable mStatusChecker = new Runnable() {
+	Runnable powerBarUpdater = new Runnable() {
 		public void run() {
-			updateStatus(); //this function can change value of mInterval. 
-			mHandler.postDelayed(mStatusChecker, (long) POWER_UPDATE_RATE);
+			updateStatus(); 
+			mHandler.postDelayed(powerBarUpdater, (long) POWER_UPDATE_RATE);
+		}
+	};
+	
+	Runnable ProjectileTravelUpdater = new Runnable() {
+		public void run() {
+			updateProjectileTravel(); 
+			mHandler.postDelayed(ProjectileTravelUpdater, (long) PROJECTILE_TRAVEL_UPDATE_RATE );
 		}
 	};
 
+	private void updateProjectileTravel()
+	{
+		
+	}
+	
 	private void updateStatus()
 	{
 		TextView tv = (TextView) findViewById(R.id.powerMeterTextView);
@@ -131,38 +155,21 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		tv.setText("Power: " + Double.toString(timeFireButtonWasHeldDown)); 
 	}
 
-	void startRepeatingTask() {
-		mStatusChecker.run(); 
+	void startRepeatingTask(String str) {
+		if(str.equalsIgnoreCase("powerbar"))
+			powerBarUpdater.run(); 
+		else if(str.equalsIgnoreCase("projectiletravel"))
+			ProjectileTravelUpdater.run();
 	}
 
-	void stopRepeatingTask() {
-		mHandler.removeCallbacks(mStatusChecker);
+	void stopRepeatingTask(String str) {
+		
+		if(str.equalsIgnoreCase("powerbar"))
+			mHandler.removeCallbacks(powerBarUpdater);
+		else if(str.equalsIgnoreCase("projectiletravel"))
+			mHandler.removeCallbacks(ProjectileTravelUpdater);
 	}
 
-	/**
-	 * @param startPoint - origin of the projectile
-	 * @param d - in kilometers
-	 * @param bearing - in degrees
-	 * @return
-	 */
-	private LatLng computeShellLandPoint(LatLng startPoint, double dist, double bearing){
-
-		dist = dist / 6371;  
-		bearing = bearing * Math.PI / 180;  
-
-		double lat1 = startPoint.latitude * Math.PI / 180;
-		double lon1 = startPoint.longitude * Math.PI / 180;
-
-		double lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist) + 
-				Math.cos(lat1) * Math.sin(dist) * Math.cos(bearing));
-
-		double lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(dist) *
-				Math.cos(lat1), 
-				Math.cos(dist) - Math.sin(lat1) *
-				Math.sin(lat2));
-
-		return new LatLng(lat2 * 180 / Math.PI, lon2 * 180 / Math.PI);
-	}
 
 	public void locationUpdate()
 	{
@@ -192,8 +199,7 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		else if(arg1== LocationProvider.OUT_OF_SERVICE) { 
 			Toast.makeText(MapActivity.this, 
 					"LocationProvider.OUT_OF_SERVICE", Toast.LENGTH_SHORT).show(); 
-		} 
-
+		}
 	}
 
 
