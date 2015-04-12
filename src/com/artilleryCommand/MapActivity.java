@@ -1,15 +1,6 @@
 package com.artilleryCommand;
 
 
-import com.google.android.gms.maps.CameraUpdate;
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
-
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -34,40 +25,68 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+
+/**
+ * Comment placeholder.
+ */
 public class MapActivity extends FragmentActivity implements SensorEventListener, LocationListener {
 
-	private final double POWER_UPDATE_RATE = 10;
-	private final double PROJECTILE_TRAVEL_UPDATE_RATE = 10;
-	private double currentLat, currentLon;
+	private static final double POWER_UPDATE_RATE = 10;
+	private static final double PROJECTILE_TRAVEL_UPDATE_RATE = 10;
+	private double currentLat;
+	private double currentLon;
 
 	private GoogleMap map;
 
 	//Timer variables (used for power calculations)
-	private double startTime = 0;
-	private double endTime = 0;
-	private double timeFireButtonWasHeldDown = 0;
+	private double startTime;
+	private double endTime;
+	private double timeFireButtonWasHeldDown;
 	private LocationManager mLocManager;
 
 	//Sensor variables used for orientation/projectile calculations
-	SensorManager m_sensorManager;
-	private float[] m_lastMagFields;
-	private float[] m_lastAccels;
-	private float[] m_rotationMatrix = new float[16];
-	private float[] m_orientation = new float[4];
+	private SensorManager sensorManager;
+	private float[] lastMagFields;
+	private float[] lastAccels;
+	private float[] rotationMatrix = new float[16];
+	private float[] orientation = new float[4];
 
 	//Variables to fix random noise by averaging tilt values
-	private Filter [] m_filters = { new Filter(), new Filter(), new Filter() };
-	private float m_lastPitch = 0.f;
-	private float m_lastYaw = 0.f;
-	private float m_lastRoll = 0.f;
+	private Filter [] filters = { new Filter(), new Filter(), new Filter() };
+	private float lastPitch;
+	private float lastYaw;
+	private float lastRoll;
+    private Handler mHandler = new Handler();
 
+    private Runnable powerBarUpdater = new Runnable() {
+        public void run() {
+            updateStatus();
+            mHandler.postDelayed(powerBarUpdater, (long)POWER_UPDATE_RATE);
+        }
+    };
 
-	private Handler mHandler = new Handler();
+    private Runnable projectileTravelUpdater = new Runnable() {
+        public void run() {
+            updateProjectileTravel();
+            mHandler.postDelayed(projectileTravelUpdater, (long)PROJECTILE_TRAVEL_UPDATE_RATE );
+        }
+    };
 
+    /**
+     * default constructor.
+     */
+    public MapActivity() {
 
-	/*^***********^*/
-	/*START METHODS*/
-	/*^***********^*/
+    }
+
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.map_layout);
@@ -78,12 +97,10 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		//init and register listeners needed for gameplay functionality
 		initAndRegisterListeners();
 
-		map = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map)).getMap();
+		map = ((SupportMapFragment)getSupportFragmentManager().findFragmentById(R.id.map)).getMap();
 		locationUpdate();
 
-
-
-		final Button fire = (Button) findViewById(R.id.fireButton);
+		final Button fire = (Button)findViewById(R.id.fireButton);
 		fire.setOnTouchListener(new OnTouchListener() {
 
 			public boolean onTouch(View v, MotionEvent event) {
@@ -92,17 +109,14 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 				if (action == MotionEvent.ACTION_DOWN) {
 					startTime = System.currentTimeMillis();
 					startRepeatingTask("powerbar");
-				} 
-				else if (action == MotionEvent.ACTION_UP) {
+				} else if (action == MotionEvent.ACTION_UP) {
 					endTime = System.currentTimeMillis();
-					timeFireButtonWasHeldDown = ((endTime-startTime) / POWER_UPDATE_RATE);
+					timeFireButtonWasHeldDown = ((endTime - startTime) / POWER_UPDATE_RATE);
 					stopRepeatingTask("powerbar");
 				}
 
 				return false;
 			}
-
-
 		});
 
 		fire.setOnClickListener(new View.OnClickListener() {
@@ -113,7 +127,8 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 
 				LatLng currentLoc = new LatLng(currentLat, currentLon);
 				
-				LatLng projectileLandLoc = ProjectileCalculations.computeShellLandPoint(currentLoc, ProjectileCalculations.computeShellDistanceTraveled(m_lastRoll, timeFireButtonWasHeldDown), m_lastYaw-90); // -90 rotates it so 0 degree is north instead of east.
+				LatLng projectileLandLoc = ProjectileCalculations.computeShellLandPoint(currentLoc,
+                        ProjectileCalculations.computeShellDistanceTraveled(lastRoll, timeFireButtonWasHeldDown), lastYaw - 90); //-90 rotates it so 0 degree is north instead of east.
 				
 				map.addMarker(new MarkerOptions() 
 				.position(projectileLandLoc) 
@@ -128,55 +143,44 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		});
 	}
 
-
-	Runnable powerBarUpdater = new Runnable() {
-		public void run() {
-			updateStatus(); 
-			mHandler.postDelayed(powerBarUpdater, (long) POWER_UPDATE_RATE);
-		}
-	};
-	
-	Runnable ProjectileTravelUpdater = new Runnable() {
-		public void run() {
-			updateProjectileTravel(); 
-			mHandler.postDelayed(ProjectileTravelUpdater, (long) PROJECTILE_TRAVEL_UPDATE_RATE );
-		}
-	};
-
-	private void updateProjectileTravel()
-	{
+	private void updateProjectileTravel() {
 		
 	}
 	
-	private void updateStatus()
-	{
-		TextView tv = (TextView) findViewById(R.id.powerMeterTextView);
-		timeFireButtonWasHeldDown = ((System.currentTimeMillis()-startTime) / POWER_UPDATE_RATE);
+	private void updateStatus() {
+		TextView tv = (TextView)findViewById(R.id.powerMeterTextView);
+		timeFireButtonWasHeldDown = ((System.currentTimeMillis() - startTime) / POWER_UPDATE_RATE);
 		tv.setText("Power: " + Double.toString(timeFireButtonWasHeldDown)); 
 	}
 
 	void startRepeatingTask(String str) {
-		if(str.equalsIgnoreCase("powerbar"))
-			powerBarUpdater.run(); 
-		else if(str.equalsIgnoreCase("projectiletravel"))
-			ProjectileTravelUpdater.run();
+		if (str.equalsIgnoreCase("powerbar")) {
+            powerBarUpdater.run();
+        } else if (str.equalsIgnoreCase("projectiletravel")) {
+            projectileTravelUpdater.run();
+        }
 	}
 
 	void stopRepeatingTask(String str) {
-		
-		if(str.equalsIgnoreCase("powerbar"))
-			mHandler.removeCallbacks(powerBarUpdater);
-		else if(str.equalsIgnoreCase("projectiletravel"))
-			mHandler.removeCallbacks(ProjectileTravelUpdater);
+		if (str.equalsIgnoreCase("powerbar")) {
+            mHandler.removeCallbacks(powerBarUpdater);
+        } else if (str.equalsIgnoreCase("projectiletravel")) {
+            mHandler.removeCallbacks(projectileTravelUpdater);
+        }
 	}
 
-
-	public void locationUpdate()
-	{
-		CellLocation.requestLocationUpdate();
+    /**
+     * Comment placeholder.
+     */
+	public void locationUpdate() {
+        CellLocation.requestLocationUpdate();
 	}
 
-	public void onProviderDisabled(String arg0) {
+    /**
+     * Comment placeholder.
+     * @param str .
+     */
+	public void onProviderDisabled(String str) {
 		// TODO Auto-generated method stub
 		Toast.makeText(MapActivity.this, "Gps Disabled", Toast.LENGTH_SHORT).show();
 		Intent intent = new Intent(
@@ -184,33 +188,43 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		startActivity(intent);
 	}
 
-	public void onProviderEnabled(String arg0) {
+    /**
+     * Comment placeholder.
+     * @param str .
+     */
+	public void onProviderEnabled(String str) {
 		// TODO Auto-generated method stub
 
 	}
 
-	public void onStatusChanged(String arg0, int arg1, Bundle arg2) {
-		if(arg1 == 
-				LocationProvider.TEMPORARILY_UNAVAILABLE) { 
+    /**
+     * Comment placeholder.
+     * @param str .
+     * @param i .
+     * @param bundle .
+     */
+	public void onStatusChanged(String str, int i, Bundle bundle) {
+		if (i == LocationProvider.TEMPORARILY_UNAVAILABLE) {
 			Toast.makeText(MapActivity.this, 
 					"LocationProvider.TEMPORARILY_UNAVAILABLE", 
 					Toast.LENGTH_SHORT).show(); 
-		} 
-		else if(arg1== LocationProvider.OUT_OF_SERVICE) { 
+		} else if (i == LocationProvider.OUT_OF_SERVICE) {
 			Toast.makeText(MapActivity.this, 
 					"LocationProvider.OUT_OF_SERVICE", Toast.LENGTH_SHORT).show(); 
 		}
 	}
 
-
+    /**
+     * Comment placeholder.
+     * @param location .
+     */
 	public void onLocationChanged(Location location) {
 		currentLat = location.getLatitude();
 		currentLon = location.getLongitude();
 
 		Log.v("Test", "IGA" + "Lat" + currentLat + "   Lng" + currentLon);
 
-		if(location != null)
-		{
+		if (location != null) {
 			mLocManager.removeUpdates(this);
 		}
 		Toast.makeText(this, "Lat" + currentLat + "   Lng" + currentLon,
@@ -225,20 +239,19 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 
 	}
 
-
 	private void initAndRegisterListeners() {
-		mLocManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		m_sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+		mLocManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
+		sensorManager = (SensorManager)getSystemService(Context.SENSOR_SERVICE);
 
-		m_sensorManager.registerListener(this, m_sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_GAME);
-		m_sensorManager.registerListener(this, m_sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_GAME);
+		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_GAME);
+		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_GAME);
 
 		mLocManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
 		mLocManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, this);
 	}
 
 	private void unregisterListeners() {
-		m_sensorManager.unregisterListener(this);
+		sensorManager.unregisterListener(this);
 
 		mLocManager.removeUpdates(this);
 	}
@@ -261,11 +274,19 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 		super.onResume();
 	}
 
-
+    /**
+     * Comment placeholder.
+     * @param sensor .
+     * @param accuracy .
+     */
 	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-		//TODO auto gen stub thing.
+		//TODO auto gen stub.
 	}
 
+    /**
+     * Comment placeholder.
+     * @param event .
+     */
 	public void onSensorChanged(SensorEvent event) {
 		if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
 			accel(event);
@@ -276,56 +297,56 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 	}
 
 	private void accel(SensorEvent event) {
-		if (m_lastAccels == null) {
-			m_lastAccels = new float[3];
+		if (lastAccels == null) {
+			lastAccels = new float[3];
 		}
 
-		System.arraycopy(event.values, 0, m_lastAccels, 0, 3);
+		System.arraycopy(event.values, 0, lastAccels, 0, 3);
 
-		if (m_lastMagFields != null) {
+		if (lastMagFields != null) {
 			computeOrientation();
 		}
 	}
 
 	private void mag(SensorEvent event) {
-		if (m_lastMagFields == null) {
-			m_lastMagFields = new float[3];
+		if (lastMagFields == null) {
+			lastMagFields = new float[3];
 		}
 
-		System.arraycopy(event.values, 0, m_lastMagFields, 0, 3);
+		System.arraycopy(event.values, 0, lastMagFields, 0, 3);
 
-		if (m_lastAccels != null) {
+		if (lastAccels != null) {
 			computeOrientation();
 		}
 	}
 
 	private void computeOrientation() {
-		if (SensorManager.getRotationMatrix(m_rotationMatrix, null, m_lastAccels, m_lastMagFields)) {
-			SensorManager.getOrientation(m_rotationMatrix, m_orientation);
+		if (SensorManager.getRotationMatrix(rotationMatrix, null, lastAccels, lastMagFields)) {
+			SensorManager.getOrientation(rotationMatrix, orientation);
 
 			/* 1 radian = 57.2957795 degrees */
 			/* [0] : yaw, rotation around z axis
 			 * [1] : pitch, rotation around x axis
 			 * [2] : roll, rotation around y axis */
-			float yaw = m_orientation[0] * 57.2957795f;
-			float pitch = m_orientation[1] * 57.2957795f;
-			float roll = m_orientation[2] * 57.2957795f;
+			float yaw = orientation[0] * 57.2957795f;
+			float pitch = orientation[1] * 57.2957795f;
+			float roll = orientation[2] * 57.2957795f;
 
-			m_lastYaw = m_filters[0].append(yaw);
-			m_lastPitch = m_filters[1].append(pitch);
-			m_lastRoll = m_filters[2].append(roll);
+			lastYaw = filters[0].append(yaw);
+			lastPitch = filters[1].append(pitch);
+			lastRoll = filters[2].append(roll);
 		}
 	}
 
-	private double computeShellDistanceTraveled(double shellAngleDegrees, double velocity){
+	private double computeShellDistanceTraveled(double shellAngleDegrees, double velocity) {
 
 		double landPointX = 0;
 		double shellVelocity = velocity; //Random number that should come from trigger press/time button held down.
 		double worldGravity = 9.80665; //standard gravity is 9.80665 m/s^2 
-		double shellAngleRadians=shellAngleDegrees*0.0174532925;
+		double shellAngleRadians = shellAngleDegrees * 0.0174532925;
 
 		//((2v^2) / g) * cos(a) * sin(a) 
-		landPointX = ( (2* Math.pow(shellVelocity,2.0)) / worldGravity) * Math.cos(shellAngleRadians) * Math.sin(shellAngleRadians);
+		landPointX = ((2 * Math.pow(shellVelocity, 2.0)) / worldGravity) * Math.cos(shellAngleRadians) * Math.sin(shellAngleRadians);
 		Context context = getApplicationContext();
 		CharSequence text = Double.toString(landPointX);
 
@@ -338,25 +359,32 @@ public class MapActivity extends FragmentActivity implements SensorEventListener
 
 	private class Filter {
 		static final int AVERAGE_BUFFER = 1;
-		float []m_arr = new float[AVERAGE_BUFFER];
-		int m_idx = 0;
+		float[] arr = new float[AVERAGE_BUFFER];
+		int idx;
+
+        /**
+         * Default constructor.
+         */
+        public Filter() {
+
+        }
 
 		public float append(float val) {
-			m_arr[m_idx] = val;
-			m_idx++;
-			if (m_idx == AVERAGE_BUFFER)
-				m_idx = 0;
+			arr[idx] = val;
+			idx++;
+			if (idx == AVERAGE_BUFFER) {
+                idx = 0;
+            }
 			return avg();
 		}
 		public float avg() {
 			float sum = 0;
-			for (float x: m_arr)
-				sum += x;
+			for (float x: arr) {
+                sum += x;
+            }
 			return sum / AVERAGE_BUFFER;
 		}
-
 	}
-
 }
 
 

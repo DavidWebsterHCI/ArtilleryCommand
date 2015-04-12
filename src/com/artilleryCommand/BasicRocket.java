@@ -1,6 +1,12 @@
 package com.artilleryCommand;
 
-public class BasicRocket extends Projectile {
-	//test
+public class BasicRocket extends AbstractProjectile {
+
+    /**
+     * Default constructor.
+     */
+    public BasicRocket() {
+
+    }
 
 }
