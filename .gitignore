@@ -7,3 +7,5 @@ lint.xml
 .settings/
 bin/
 gen/
+com.artilleryCommand.iml
+classes/production/

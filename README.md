@@ -1,7 +1,12 @@
-Artillery Command is an artillery strategy game in the extreme early stages of development.
+Artillery Command is an artillery strategy game in an extremely early stage of development.
 
 More updates as functionality is added -- check back soon!
 
+Requirements:
+
+This game makes use of Google Maps, and thus requires google-play-services_lib v4 to be installed.
+
+ 
 Current game controls:
 
 "projectiles" will come out of the "top" of the phone (hold in landscape, with screen facing you.  This typically puts the phone at a 45 degree angle in respect to the ground.  This then means that you are now shooting at a 45 degree angle. 
